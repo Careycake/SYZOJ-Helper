@@ -1,0 +1,14 @@
+{
+    "manifest_version": 3,
+    "name": "SYZOJ 助手",
+    "version": "0.21",
+    "description": "这是一个针对常见的 SYZOJ 的美化工具，并为其增加了一些功能，部分灵感与实现 Smart-Lougu。",
+    "author": "Carey_chen",
+    "content_scripts": 
+    [
+        {
+            "matches": ["http://www.nfls.com.cn:20035/*", "http://192.168.188.77/*", "http://47.109.34.226:5283/*", "https://tywzoj.top/*", "http://noi.ybtoj.com.cn/*", "http://syzoj.365xingzhi.com:5283/*"],
+            "js": ["main.js"]
+        }
+    ]
+  }
