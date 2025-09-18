@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         SYZOJ Helper
-// @version      0.21
+// @version      0.3
 // @author       Carey_chen
 // @description  这是一个针对常见的 SYZOJ 的美化工具，并为其增加了一些功能，部分灵感与实现 Smart-Lougu。
 // @match        http://www.nfls.com.cn:20035/*
@@ -11,6 +11,7 @@
 // @match        http://ssloj.cn/*
 // @match        https://loj.ac/*
 // @match        https://cdn.plyr.io/3.7.8/plyr.svg
+// @match        http://192.168.188.77/*
 // ==/UserScript==
 
 var image, DefaultImage =
@@ -94,9 +95,9 @@ function PowerfulLogin()
 
 function show_problem_tag(i)
 {
-    $('#statisticsNum_' + i).show()
-    $('#statisticsPlaceholder_' + i).hide()
-    $('#show_tag_controled_' + i).show()
+    jQuery('#statisticsNum_' + i).show()
+    jQuery('#statisticsPlaceholder_' + i).hide()
+    jQuery('#show_tag_controled_' + i).show()
 }
 
 function FindCookie(name)
@@ -136,15 +137,113 @@ function Onclick(id, Notcheckclick = false)
     }
 }
 
-var Name = ["背景图片", "自动跳转", "使用 Cookie 登录", "Cookie 登录提示（建议开启）", "强制显示题目标签", "内嵌 Tldraw 白板"];
-var Id = ["Image", "Jump", "Cookie-Login", "Cookie-Tips", "ShowProblemTag", "Tldraw"];
-
-//https://www.tldraw.com/
-
-function TldrawWindows()
+function genSearchBox(use, id, holder, api) 
 {
-    document.querySelector('body').insertAdjacentHTML('beforeend', '<div class="ui dimmer modals page transition visible active" style="display: flex !important;" id="TldrawWin"><div class="ui modal transition visible active scrolling" id="__modal" style="width: 80%; height: 84%; display: block !important;"><div class="header"><div> Tldraw 白板 </div></div><div class="content" style="height: 88%"><iframe name="__iframe" id="__iframe" width="100%" height="100%" style="border: medium none" src="https://examples.tldraw.com/basic/full?utm_source=docs-embed"></iframe></div><div class="actions"><button class="ui cancel button primary" id="CloseTldrawWin"> 关闭 </button></div></div></div>');
-    document.getElementById('CloseTldrawWin').addEventListener('click', function(){document.getElementById('TldrawWin').remove();}, false);
+    return [`
+    <h4 class="ui top attached block header"><i class="search icon"></i><div class="content">${use}</div></h4>
+    <div class="ui bottom attached segment" style="z-index: 50;">
+      <div class="ui search focus" id="${id}" style="width: 100%; ">
+        <div class="ui left icon input" style="width: 100%; ">
+          <input class="prompt" style="width: 100%;" type="text" placeholder="${holder}">
+          <i class="search icon"></i>
+        </div>
+        <div class="results" style="width: 100%; "></div>
+    </div></div>`, `
+    $(function () {
+      $('#${id}').search({
+        debug: false,
+        apiSettings: {url: '/api/v2/search/${api}/{query}', cache: false},
+        fields: {title: 'name'}
+      });
+    });
+    `];
+}
+
+async function Hitokoto() 
+{
+    let h = await $.get("https://v1.hitokoto.cn/?c=a");
+    return `<a style='color:black' href=https://hitokoto.cn/?uuid=${h.uuid} target='_blank'>${h.hitokoto}</a><div style="margin-top: 14px;text-align: right;font-size: .95em;color: #999;">${"\u2014\u2014"}${h.from}</div>`;
+}
+
+const domain = window.location.pathname;
+async function MainPageFun()
+{
+    if (domain == "/") 
+    {
+        let LeftPlace = $(".right.floated.five.wide.column")[0];
+        let SearchUser = genSearchBox("查找用户", "user", "ID / 用户名 …", "users");
+        if(localStorage.getItem("ShowUserFinding") == "true")
+        {
+            LeftPlace.innerHTML = SearchUser[0] + LeftPlace.innerHTML;
+            script = document.createElement("script");
+            script.innerHTML = SearchUser[1];
+            LeftPlace.appendChild(script);
+        }
+
+        if(localStorage.getItem("ShowHitokoto") == "false")
+        {
+            return;
+        }
+        try {
+            LeftPlace.innerHTML = `
+            <h4 class="ui block top attached header"><i aria-hidden="true" class="ui quote left icon"></i><div class="content">Hitokoto (一言)
+            <i id="hit" title="Refresh" style="" class="redo icon button"></i></div></h4>
+            <div class="ui bottom attached center aligned segment">
+            <div id="hitword"></div>
+            <div id="hithold" class="ui placeholder">
+                <div class="paragraph">
+                <div class="line"></div>
+                <div class="line"></div>
+                <div class="line"></div>
+                <div class="line"></div>
+                </div>
+            </div>
+            </div>
+            <style>
+            #hit {
+                opacity: .2;position: absolute;right: 10px;height: 19px;display: inline-flex;align-items: center;
+            }
+            #hit:hover {
+                opacity: .4;
+            }
+            </style>` + LeftPlace.innerHTML;
+            let getyy = async () => {
+                $("#hitword").hide();
+                $("#hithold").show();
+                $("#hitword").html(await Hitokoto());
+                $("#hitword").show();
+                $("#hithold").hide()
+            };
+            getyy();
+            $("#hit").click(getyy);
+        } catch {
+            console.error("SYZOJ Helper：一言加载失败，网络错误");
+        }
+    }
+}
+
+var Name = ["背景图片", "自动跳转", "使用 Cookie 登录", "Cookie 登录提示", "强制显示题目标签", "白板工具", "在主页优化排名", "在主页显示一言", "在主页显示用户查找"];
+var Id = ["Image", "Jump", "Cookie-Login", "Cookie-Tips", "ShowProblemTag", "WhiteBoard", "ShowRanking", "ShowHitokoto", "ShowUserFinding"];
+var Discribe = 
+[
+    "设置网站的背景图片，可自定义图片链接。", 
+    "当操作失败时，自动跳转回上一页。", 
+    "提供使用 Cookie 进行登录的选项。", 
+    "当使用 Cookie 登录时，显示提示信息提醒，避免误操作，<strong> 强烈建议开启 <strong>。", "强制显示题库中题目的标签信息。", 
+    "在边栏上显示白板工具按钮，方便绘图和打草稿，推荐使用 <a href=\"http://www.nfls.com.cn:20035/article/5212\">excalidraw</a>，你可以在下方自定义白板地址。", 
+    "在主页优化排名区域的展示效果，调整布局与视觉样式，提升用户排名、分数等信息的可读性，优化排名模块的浏览体验。",
+    "在主页左侧区域显示随机一言（Hitokoto）内容，你可以从这里获得做题的动力。",
+    "在主页左侧添加用户搜索功能模块，支持通过「用户 ID」或「用户名」进行搜索；帮助快速定位用户。"
+];
+
+var WhiteBoard, DefaultWhiteBoard = "https://excalidraw.com/";
+
+//https://www.WhiteBoard.com/
+
+function WhiteBoardWindows()
+{
+    document.querySelector('body').insertAdjacentHTML('beforeend', '<div class="ui dimmer modals page transition visible active" style="display: flex !important;" id="WhiteBoardWin"><div class="ui modal transition visible active scrolling" id="__modal" style="width: 80%; height: 84%; display: block !important;"><div class="header"><div> 白板 </div></div><div class="content" style="height: 88%"><iframe name="__iframe" id="__iframe" width="100%" height="100%" style="border: medium none" src="' + WhiteBoard + '">正在加载中，请稍后...</iframe></div><div class="actions"><button class="ui cancel button primary" id="CloseWhiteBoardWin"> 关闭 </button></div></div></div>');
+    document.getElementById('CloseWhiteBoardWin').addEventListener('click', function(){document.getElementById('WhiteBoardWin').remove();}, false);
 }
 
 var list, DefaultList = ["首页","题库","课程 &amp; 比赛","练习","评测","排名","讨论","帮助","返回比赛","修改资料","上传视频","后台管理","重启服务","注销"];
@@ -156,10 +255,14 @@ function SettingWindows()
     const ChangeFunction = document.getElementById("ChangeFunction");
     for(var i = 0; i < Name.length; i++)
     {
-        ChangeFunction.insertAdjacentHTML('beforeend', '<div class="ui toggle checkbox" style="margin-right: 20px; "><input type="checkbox" id="' + Id[i] + '"><label>' + Name[i] + '</label></div>');
+        ChangeFunction.insertAdjacentHTML('beforeend', '<div class="ui toggle checkbox" style="margin-right: 20px; "><input type="checkbox" id="' + Id[i] + '"><label>' + Name[i] + '</label></div><br><div class="ui toggle text" style="margin-right: 20px; ">' + Discribe[i] + '</div><br>');
         if(localStorage.getItem(Id[i]) == 'true')
         {
             document.getElementById(Id[i]).checked = true;
+        }
+        if(Id[i] == "WhiteBoard")
+        {
+            ChangeFunction.insertAdjacentHTML('beforeend', '<div style="width: 300px" class="ui input"><input id="WhiteBoardDetail" placeholder="白板地址" type="text" value="' + WhiteBoard + '"></div><br><br>');
         }
     }
 
@@ -179,13 +282,17 @@ function SettingWindows()
         };
         var NewImage = document.getElementById("ImageDetail").value.split("\n");
         var NewList = document.getElementById("ListDetail").value.replace("&", "&amp;").split("\n");
+        var NewWhiteBoard = document.getElementById("WhiteBoardDetail").value;
 
         console.log("ImageDetail:");
         console.log(NewImage);
         console.log("ListDetail:");
         console.log(NewList);
+        console.log("WhiteBoardDetail:");
+        console.log(NewWhiteBoard);
         localStorage.setItem('ImageDetail', JSON.stringify(NewImage));
         localStorage.setItem('ListDetail', JSON.stringify(NewList));
+        localStorage.setItem('WhiteBoardDetail', NewWhiteBoard);
         window.location.reload();
     }, false);
 }
@@ -197,6 +304,9 @@ function SettingWindows()
         console.log("Hi!");
         window.location.href = "https://cdn.bootcdn.net/ajax/libs/plyr/3.7.8/plyr.svg";
     }
+
+    Hitokoto();
+    MainPageFun();
 
     if(localStorage.getItem("FirstUses") == null)
     {
@@ -210,16 +320,20 @@ function SettingWindows()
         localStorage.setItem('ListDetail', JSON.stringify(DefaultList));
     }
 
+    WhiteBoard = localStorage.getItem("WhiteBoardDetail");
     image = JSON.parse(localStorage.getItem("ImageDetail"));
     list = JSON.parse(localStorage.getItem("ListDetail"));
 	window.setTimeout(ChangeBackground, 700);
 
-    if(document.querySelector(".negative") && document.querySelector('.content>.header') && localStorage.getItem("Jump") == 'true')
+    if(document.querySelector(".negative") && document.querySelector('.content>.header'))
     {
-		const element = document.querySelector('.content>.header');
-        element.innerHTML = element.innerHTML.replace(new RegExp("您没有权限进行此操作", 'gi'), '您没有权限进行此操作，3s后自动返回' );
-        element.innerHTML = element.innerHTML.replace(new RegExp("您已经登录了，请先注销", 'gi'), '您已经登录了，请先注销，3s后自动返回' );
-		window.setTimeout("window.history.back();", 3000);
+        if(localStorage.getItem("Jump") == 'true')
+        {
+            const element = document.querySelector('.content>.header');
+            element.innerHTML = element.innerHTML.replace(new RegExp("您没有权限进行此操作", 'gi'), '您没有权限进行此操作，3s后自动返回' );
+            element.innerHTML = element.innerHTML.replace(new RegExp("您已经登录了，请先注销", 'gi'), '您已经登录了，请先注销，3s后自动返回' );
+            window.setTimeout("window.history.back();", 3000);
+        }
     }
     else if(new RegExp(".*://.*/login*").test(window.location.href.toString()) && localStorage.getItem("Cookie-Login") == 'true')
     {
@@ -260,10 +374,10 @@ function SettingWindows()
     var css = "";
     if(Menu != undefined)
     {
-        if(localStorage.getItem("Tldraw") == 'true')
+        if(localStorage.getItem("WhiteBoard") == 'true')
         {
-            Menu.insertAdjacentHTML('beforeend', '<a class="item"  id="Tldraw_er"><i class="pencil icon"></i> <i class="text">Tldraw 白板</i></a>');
-            document.getElementById('Tldraw_er').addEventListener('click', TldrawWindows, false);
+            Menu.insertAdjacentHTML('beforeend', '<a class="item"  id="WhiteBoard_er"><i class="pencil icon"></i> <i class="text">白板</i></a>');
+            document.getElementById('WhiteBoard_er').addEventListener('click', WhiteBoardWindows, false);
         }
 
         Menu.insertAdjacentHTML('beforeend', '<a class="item"  id="Setting"><i class="setting icon"></i> <i class="text">插件设置</i></a>');
@@ -302,7 +416,7 @@ function SettingWindows()
             "    background-position: center;",
             "    background-attachment: fixed;",
             "}",
-            "h1:first-child,.padding > h1{",
+            "h1:first-child:not(#content h1),.padding > h1{",
             "    color: white !important;",
             "}",
         ].join("\n");
@@ -350,233 +464,237 @@ function SettingWindows()
             "}"
         ].join("\n");
     }
-    css += [
-        "#RightMenu {",
-        "    width: 150px;",
-        "    left: calc(100% - 200px);",
-        "    position: relative;",
-        "    border-radius: 20px !important;",
-        "}",
-        "#Unshow {",
-        "    display: block !important;",
-        "}",
-        "#Unshow > .long.arrow.alternate.left.icon{",
-        "    width: auto;",
-        "    display: block !important;",
-        "}",
-        "#ImageDetail, #ListDetail {",
-        "    margin: 0;",
-        "    -webkit-appearance: none;",
-        "    tap-highlight-color: rgba(255,255,255,0);",
-        "    padding: .78571429em 1em;",
-        "    background: #fff;",
-        "    border: 1px solid rgba(34, 36, 38, .15);",
-        "    outline: 0;",
-        "    color: rgba(0, 0, 0, .87);",
-        "    border-radius: .28571429rem;",
-        "    -webkit-box-shadow: 0 0 0 0 transparent inset;",
-        "    box-shadow: 0 0 0 0 transparent inset;",
-        "    -webkit-transition: color .1s ease, border-color .1s ease;",
-        "    transition: color .1s ease, border-color .1s ease;",
-        "    font-size: 1em;",
-        "    line-height: 1.2857;",
-        "    resize: vertical;",
-        "}",
-        "#ImageDetail:focus, #ListDetail:focus {",
-        "    color: rgba(0, 0, 0, .95);",
-        "    border-color: #85b7d9;",
-        "    border-radius: .28571429rem;",
-        "    background: #fff;",
-        "    -webkit-box-shadow: 0 0 0 0 rgba(34, 36, 38, .35) inset;",
-        "    box-shadow: 0 0 0 0 rgba(34, 36, 38, .35) inset;",
-        "    -webkit-appearance: none;",
-        "}",
-        ".cookie{",
-        "    display: flex !important;",
-        "    flex-wrap: wrap !important;",
-        "    justify-content: center;",
-        "    align-content: center !important;",
-        "}",
-        "/*边栏*/",
-        ".ui.fixed.borderless.menu{",
-        "    margin-top: 0.5% !important;",
-        "    transform: scale(0.95, 0.95);",
-        "    background: none;",
-        "    width: auto !important;",
-        "    height: auto !important;",
-        "    position: fixed !important;",
-        "    float: left !important;",
-        "    backdrop-filter: blur(10px) !important;",
-        "    border-top-left-radius: 50px !important;",
-        "    border-top-right-radius: 50px !important;",
-        "    border-bottom-right-radius: 20px !important;",
-        "    border-bottom-left-radius: 20px !important;",
-        "    box-shadow: 0 0 5px #333;",
-        "}",
-        "#RightMenu, #RightMenu_Dropped{",
-        "    display: flex;",
-        "    background: none;",
-        "    align-content: center;",
-        "    justify-content: center;",
-        "    flex-direction: column;",
-        "    flex-wrap: wrap;",
-        "    align-items: center;",
-        "    backdrop-filter: blur(10px) !important;",
-        "    z-index: 10;",
-        "    position: fixed;",
-        "    box-shadow: 0 0 5px #333;",
-        "}",
-        "div#RightMenu_Dropped:before {",
-        "    content: \"3t2\";",
-        "}",
-        ".ui.fixed.borderless.menu div:not(#modal-restart){",
-        "    display: flex;",
-        "    background-attachment: revert;",
-        "    align-content: center;",
-        "    justify-content: center;",
-        "    flex-direction: column;",
-        "    flex-wrap: wrap;",
-        "    align-items: center;",
-        "    backdrop-filter: blur(10px) !important;",
-        "    width: auto;",
-        "}",
-        // ".right.menu{",
-        // "    position: fixed;",
-        // "    right:100px;",
-        // "    top: 0px!important;",
-        // "    margin-top: 0px;",
-        // "}",
-        "/*边栏上的按钮*/",
-        ".ui.fixed.borderless.menu > div > a:first-of-type{",
-        "    width: 100px !important;",
-        "    height: 100px !important;",
-        "    border-radius: 50px !important;",
-        "    background-image: url(https://cdn.luogu.com.cn/upload/image_hosting/mj3q9q5d.png) !important;",
-        "    background-repeat: no-repeat;",
-        "    background-size: cover;",
-        "    background-position: center;",
-        "    background-attachment: revert;",
-        "}",
-        "#back_to_contest, #Setting, .ui.fixed.borderless.menu a.item, #RightMenu>div>div a{",
-        "    border-radius: 20px !important;",
-        "    backdrop-filter: blur(10px) !important;",
-        "    transition-duration: 0.4s !important;",
-        "    display: flex !important;",
-        "    align-content: stretch;",
-        "    flex-wrap: wrap;",
-        "    flex-direction: column;",
-        "    align-items: center;",
-        "    justify-content: center;",
-        "    background: none;",
-        "}",
-        ".ui.fixed.borderless.menu a.item:hover, #RightMenu>div>div a:hover{",
-        "    box-shadow:1px 1px 10px #00000073 !important;",
-        "    background-color: white !important;",
-        "}",
-        ".text{",
-        "    font-style:normal;",
-        "}",
-        ".ui.fixed.borderless.menu .icon, #RightMenu .icon{",
-        "    color: #61eee9f5 !important;",
-        "    display: flex !important;",
-        "    justify-content: center;",
-        "    align-items: center;",
-        "    line-height: 1.5em;",
-        "    font-size: 17px;",
-        "    width: 100%;",
-        "    margin: 0 !important;",
-        "    transition: all 0.2s ease;",
-        "}",
-        ".ui.fixed.borderless.menu .text, #RightMenu .text{",
-        "    color: #0e0063 !important;",
-        "    display: flex !important;",
-        "    justify-content: center;",
-        "    align-items: center;",
-        "    position: relative !important;",
-        "    top: 10px;",
-        "    opacity: 0;",
-        "    margin-top: -0.4em;",
-        "    display: block;",
-        "    transition: all 0.8s ease;",
-        "}",
-        ".ui.fixed.borderless.menu  a:hover > .icon, #RightMenu>div>div a:hover > .icon{",
-        "    color: #0e0063 !important;",
-        "    line-height: 1.5em;",
-        "    font-size: 17px;",
-        "}",
-        ".ui.fixed.borderless.menu  a:hover > .text, #RightMenu>div>div a:hover > .text{",
-        "    color: #0e0063 !important;",
-        "    opacity: 1;",
-        "    margin-top: 0.4em;",
-        "}",
-        "/*回复*/",
-        ".comment{",
-        "    padding: 7px 7px 7px 7px !important;",
-        "}",
-        ".comments>.header{",
-        "    padding: 7px 7px 7px 7px !important;",
-        "}",
-        "/*各种块*/",
-		"#vueAppFuckSafari, #vueAppFuckSafari>table{",
-        "    position: relative;",
-        "    z-index: 3 !important; ",
-        "}",
-		".ui.mini.form,.item{",
-        "    position: relative;",
-        "    z-index: 12 !important; ",
-        "}",
-        ".form:not(.ui.main.container > .ui.grid .form),.comments:not(.comments.icon),.attached,.table:not(.attached .table, .ui.main.container > .ui.grid .table), #score-distribution-chart, #score-distribution-chart-pre, #score-distribution-chart-suf, canvas{",
-        "    transition-duration: 0.4s !important;",
-        "    backdrop-filter: blur(10px) !important;",
-        "    border-radius: 20px ;",
-        "    background: rgba(255, 255, 255, .8) !important; ",
-        "}",
-        ".form:hover:not(.ui.main.container > .ui.grid:hover .form),.comments:hover:not(.comments.icon:hover),.attached:hover,.table:hover:not(.attached:hover .table, .ui.main.container > .ui.grid:hover .table), #score-distribution-chart:hover, #score-distribution-chart-pre:hover, #score-distribution-chart-suf:hover, canvas:hover{",
-        "    transition-duration: 0.4s !important;",
-        "    background: rgba(255, 255, 255, .9) !important;",
-        "}",
-		".attached.header{",
-        "    background: rgba(255, 255, 255, .85) !important; ",
-        "}",
-        ".field,.fields{",
-        "    padding: 7px 7px 7px 7px !important;;",
-        "}",
-        "label{",
-        "    padding-top: 15px; !important;",
-        "    padding-bottom: 15px; !important;",
-        "}",
-        "div.inline.fields > label:first-of-type{",
-        "    padding-left: 10px; !important;",
-        "}",
-        ".fields:not(.form .fields){",
-        "    transition-duration: 0.4s !important;",
-        "    backdrop-filter: blur(10px) !important;",
-        "    border-radius: 5px;",
-        "    background: rgba(255, 255, 255, .8) !important; ",
-        "}",
-        ".fields:hover:not(.form:hover .fields){",
-        "    transition-duration: 0.4s !important;",
-        "    background: rgba(255, 255, 255, .9) !important;",
-        "    box-shadow: 5px 5px 5px #000;",
-        "}",
-        "::-webkit-scrollbar-thumb {",
-        "    background-color: rgba(137, 81, 234, .99);",
-        "}",
-        "::-webkit-scrollbar-thumb:hover {",
-        "    background-color: #5e72e4;",
-        "}",
-        ".ui[class*=\"very basic\"].table:not(.sortable):not(.striped) td:first-child, .ui[class*=\"very basic\"].table:not(.sortable):not(.striped) th:first-child {",
-        "    padding-left: 10px !important;",
-        "}",
-        ".ui[class*=\"very basic\"].table:not(.sortable):not(.striped) thead tr:first-child th {",
-        "    padding-top: 10px !important;",
-        "}",
-        "::-webkit-scrollbar {",
-        "    width: 5px;",
-        "    height: 10px;",
-        "    background-color: rgba(0, 0, 0, .12);",
-        "}",
-    ].join("\n");
+
+    // if(localStorage.getItem("DisableSmart") == "true")
+    {
+        css += [
+            "#RightMenu {",
+            "    width: 150px;",
+            "    left: calc(100% - 200px);",
+            "    position: relative;",
+            "    border-radius: 20px !important;",
+            "}",
+            "#Unshow {",
+            "    display: block !important;",
+            "}",
+            "#Unshow > .long.arrow.alternate.left.icon{",
+            "    width: auto;",
+            "    display: block !important;",
+            "}",
+            "#ImageDetail, #ListDetail {",
+            "    margin: 0;",
+            "    -webkit-appearance: none;",
+            "    tap-highlight-color: rgba(255,255,255,0);",
+            "    padding: .78571429em 1em;",
+            "    background: #fff;",
+            "    border: 1px solid rgba(34, 36, 38, .15);",
+            "    outline: 0;",
+            "    color: rgba(0, 0, 0, .87);",
+            "    border-radius: .28571429rem;",
+            "    -webkit-box-shadow: 0 0 0 0 transparent inset;",
+            "    box-shadow: 0 0 0 0 transparent inset;",
+            "    -webkit-transition: color .1s ease, border-color .1s ease;",
+            "    transition: color .1s ease, border-color .1s ease;",
+            "    font-size: 1em;",
+            "    line-height: 1.2857;",
+            "    resize: vertical;",
+            "}",
+            "#ImageDetail:focus, #ListDetail:focus {",
+            "    color: rgba(0, 0, 0, .95);",
+            "    border-color: #85b7d9;",
+            "    border-radius: .28571429rem;",
+            "    background: #fff;",
+            "    -webkit-box-shadow: 0 0 0 0 rgba(34, 36, 38, .35) inset;",
+            "    box-shadow: 0 0 0 0 rgba(34, 36, 38, .35) inset;",
+            "    -webkit-appearance: none;",
+            "}",
+            ".cookie{",
+            "    display: flex !important;",
+            "    flex-wrap: wrap !important;",
+            "    justify-content: center;",
+            "    align-content: center !important;",
+            "}",
+            "/*边栏*/",
+            ".ui.fixed.borderless.menu{",
+            "    margin-top: 0.5% !important;",
+            "    transform: scale(0.95, 0.95);",
+            "    background: none;",
+            "    width: auto !important;",
+            "    height: auto !important;",
+            "    position: fixed !important;",
+            "    float: left !important;",
+            "    backdrop-filter: blur(10px) !important;",
+            "    border-top-left-radius: 50px !important;",
+            "    border-top-right-radius: 50px !important;",
+            "    border-bottom-right-radius: 20px !important;",
+            "    border-bottom-left-radius: 20px !important;",
+            "    box-shadow: 0 0 5px #333;",
+            "}",
+            "#RightMenu, #RightMenu_Dropped{",
+            "    display: flex;",
+            "    background: none;",
+            "    align-content: center;",
+            "    justify-content: center;",
+            "    flex-direction: column;",
+            "    flex-wrap: wrap;",
+            "    align-items: center;",
+            "    backdrop-filter: blur(10px) !important;",
+            "    z-index: 10;",
+            "    position: fixed;",
+            "    box-shadow: 0 0 5px #333;",
+            "}",
+            "div#RightMenu_Dropped:before {",
+            "    content: \"3t2\";",
+            "}",
+            ".ui.fixed.borderless.menu div:not(#modal-restart){",
+            "    display: flex;",
+            "    background-attachment: revert;",
+            "    align-content: center;",
+            "    justify-content: center;",
+            "    flex-direction: column;",
+            "    flex-wrap: wrap;",
+            "    align-items: center;",
+            "    backdrop-filter: blur(10px) !important;",
+            "    width: auto;",
+            "}",
+            // ".right.menu{",
+            // "    position: fixed;",
+            // "    right:100px;",
+            // "    top: 0px!important;",
+            // "    margin-top: 0px;",
+            // "}",
+            "/*边栏上的按钮*/",
+            ".ui.fixed.borderless.menu > div > a:first-of-type{",
+            "    width: 100px !important;",
+            "    height: 100px !important;",
+            "    border-radius: 50px !important;",
+            "    background-image: url(https://cdn.luogu.com.cn/upload/image_hosting/mj3q9q5d.png) !important;",
+            "    background-repeat: no-repeat;",
+            "    background-size: cover;",
+            "    background-position: center;",
+            "    background-attachment: revert;",
+            "}",
+            "#back_to_contest, #Setting, .ui.fixed.borderless.menu a.item, #RightMenu>div>div a{",
+            "    border-radius: 20px !important;",
+            "    backdrop-filter: blur(10px) !important;",
+            "    transition-duration: 0.4s !important;",
+            "    display: flex !important;",
+            "    align-content: stretch;",
+            "    flex-wrap: wrap;",
+            "    flex-direction: column;",
+            "    align-items: center;",
+            "    justify-content: center;",
+            "    background: none;",
+            "}",
+            ".ui.fixed.borderless.menu a.item:hover, #RightMenu>div>div a:hover{",
+            "    box-shadow:1px 1px 10px #00000073 !important;",
+            "    background-color: white !important;",
+            "}",
+            ".text{",
+            "    font-style:normal;",
+            "}",
+            ".ui.fixed.borderless.menu .icon, #RightMenu .icon{",
+            "    color: #61eee9f5 !important;",
+            "    display: flex !important;",
+            "    justify-content: center;",
+            "    align-items: center;",
+            "    line-height: 1.5em;",
+            "    font-size: 17px;",
+            "    width: 100%;",
+            "    margin: 0 !important;",
+            "    transition: all 0.2s ease;",
+            "}",
+            ".ui.fixed.borderless.menu .text, #RightMenu .text{",
+            "    color: #0e0063 !important;",
+            "    display: flex !important;",
+            "    justify-content: center;",
+            "    align-items: center;",
+            "    position: relative !important;",
+            "    top: 10px;",
+            "    opacity: 0;",
+            "    margin-top: -0.4em;",
+            "    display: block;",
+            "    transition: all 0.8s ease;",
+            "}",
+            ".ui.fixed.borderless.menu  a:hover > .icon, #RightMenu>div>div a:hover > .icon{",
+            "    color: #0e0063 !important;",
+            "    line-height: 1.5em;",
+            "    font-size: 17px;",
+            "}",
+            ".ui.fixed.borderless.menu  a:hover > .text, #RightMenu>div>div a:hover > .text{",
+            "    color: #0e0063 !important;",
+            "    opacity: 1;",
+            "    margin-top: 0.4em;",
+            "}",
+            "/*回复*/",
+            ".comment{",
+            "    padding: 7px 7px 7px 7px !important;",
+            "}",
+            ".comments>.header{",
+            "    padding: 7px 7px 7px 7px !important;",
+            "}",
+            "/*各种块*/",
+            "#vueAppFuckSafari, #vueAppFuckSafari>table{",
+            "    position: relative;",
+            "    z-index: 3 !important; ",
+            "}",
+            ".ui.mini.form,.item{",
+            "    position: relative;",
+            "    z-index: 12 !important; ",
+            "}",
+            ".form:not(.ui.main.container > .ui.grid .form),.comments:not(.comments.icon),.attached,.table:not(.attached .table, .ui.main.container > .ui.grid .table), #score-distribution-chart, #score-distribution-chart-pre, #score-distribution-chart-suf, canvas{",
+            "    transition-duration: 0.4s !important;",
+            "    backdrop-filter: blur(10px) !important;",
+            "    border-radius: 20px ;",
+            "    background: rgba(255, 255, 255, .8) !important; ",
+            "}",
+            ".form:hover:not(.ui.main.container > .ui.grid:hover .form),.comments:hover:not(.comments.icon:hover),.attached:hover,.table:hover:not(.attached:hover .table, .ui.main.container > .ui.grid:hover .table), #score-distribution-chart:hover, #score-distribution-chart-pre:hover, #score-distribution-chart-suf:hover, canvas:hover{",
+            "    transition-duration: 0.4s !important;",
+            "    background: rgba(255, 255, 255, .9) !important;",
+            "}",
+            ".attached.header{",
+            "    background: rgba(255, 255, 255, .85) !important; ",
+            "}",
+            ".field,.fields{",
+            "    padding: 7px 7px 7px 7px !important;;",
+            "}",
+            "label{",
+            "    padding-top: 15px; !important;",
+            "    padding-bottom: 15px; !important;",
+            "}",
+            "div.inline.fields > label:first-of-type{",
+            "    padding-left: 10px; !important;",
+            "}",
+            ".fields:not(.form .fields){",
+            "    transition-duration: 0.4s !important;",
+            "    backdrop-filter: blur(10px) !important;",
+            "    border-radius: 5px;",
+            "    background: rgba(255, 255, 255, .8) !important; ",
+            "}",
+            ".fields:hover:not(.form:hover .fields){",
+            "    transition-duration: 0.4s !important;",
+            "    background: rgba(255, 255, 255, .9) !important;",
+            "    box-shadow: 5px 5px 5px #000;",
+            "}",
+            "::-webkit-scrollbar-thumb {",
+            "    background-color: rgba(137, 81, 234, .99);",
+            "}",
+            "::-webkit-scrollbar-thumb:hover {",
+            "    background-color: #5e72e4;",
+            "}",
+            ".ui[class*=\"very basic\"].table:not(.sortable):not(.striped) td:first-child, .ui[class*=\"very basic\"].table:not(.sortable):not(.striped) th:first-child {",
+            "    padding-left: 10px !important;",
+            "}",
+            ".ui[class*=\"very basic\"].table:not(.sortable):not(.striped) thead tr:first-child th {",
+            "    padding-top: 10px !important;",
+            "}",
+            "::-webkit-scrollbar {",
+            "    width: 5px;",
+            "    height: 10px;",
+            "    background-color: rgba(0, 0, 0, .12);",
+            "}",
+        ].join("\n");
+    }
 
     var node = document.createElement("style");
     node.type = "text/css";
@@ -585,9 +703,19 @@ function SettingWindows()
     if (heads.length > 0)
     {
         heads[0].appendChild(node);
+        heads[0].insertAdjacentHTML('beforeend', '<link rel="apple-touch-icon" sizes="180x180" href="http://www.nfls.com.cn:10611/apple-touch-icon-180x180.png"> \
+        <link rel="icon" type="image/png" href="http://www.nfls.com.cn:10611/favicon-32x32.png" sizes="32x32"> \
+        <link rel="icon" type="image/png" href="http://www.nfls.com.cn:10611/android-chrome-192x192.png" sizes="192x192"> \
+        <link rel="icon" type="image/png" href="http://www.nfls.com.cn:10611/favicon-96x96.png" sizes="96x96"> \
+        <link rel="icon" type="image/png" href="http://www.nfls.com.cn:10611/favicon-16x16.png" sizes="16x16"></link>');
     }
     else
     {
         document.documentElement.appendChild(node);
+        document.documentElement.insertAdjacentHTML('beforeend', '<link rel="apple-touch-icon" sizes="180x180" href="http://www.nfls.com.cn:10611/apple-touch-icon-180x180.png"> \
+        <link rel="icon" type="image/png" href="http://www.nfls.com.cn:10611/favicon-32x32.png" sizes="32x32"> \
+        <link rel="icon" type="image/png" href="http://www.nfls.com.cn:10611/android-chrome-192x192.png" sizes="192x192"> \
+        <link rel="icon" type="image/png" href="http://www.nfls.com.cn:10611/favicon-96x96.png" sizes="96x96"> \
+        <link rel="icon" type="image/png" href="http://www.nfls.com.cn:10611/favicon-16x16.png" sizes="16x16"></link>');
     }
 })();
